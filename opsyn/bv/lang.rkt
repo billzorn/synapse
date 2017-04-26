@@ -58,6 +58,9 @@
   
   ; ------------ additional ICFP instructions ------------ ;
   [shr1 unary] [shr4 unary] [shr16 unary] [shl1 unary] [if0 ternary]
+
+  ; ------------ special DADD instructions --------------- ;
+  [msp_dcarry unary]
 )  
 
 ; Returns true iff the given instruction is an instance of a 
@@ -166,6 +169,8 @@
       [(shr16 r1)     (store idx (>>> (load r1) 16))]
       [(shl1 r1)      (store idx (<< (load r1) 1))]
       [(if0 r1 r2 r3) (store idx (if (= (load r1) 1) (load r2) (load r3)))]
+      ;; apparently used by the msp430 - use exactly 5 bits
+      [(msp_dcarry r1)(store idx (if (or (> (load r1) 9) (< (load r1) 0)) (+ (load r1) 6) (load r1)))]
       ))
   (load (- size 1)))
 

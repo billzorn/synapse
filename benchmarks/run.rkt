@@ -166,6 +166,11 @@
     [`(inversek2j-theta2) `(inversek2j-theta2-metasketch ,e ,order)]
     [`(array-search ,n) `(array-search ,n #:order ,order)]
     [`(qm ,q) `(,q #:order ,order)]
+
+    ; msp430 things
+    [`(msp ,arity ,pre ,post) `(msp-general ,post ,arity #:pre ,pre)]
+    [`(test) '(hd-d0 (list-ref all-hd-programs 0))]
+    
     [`(,x) `(,x)]
     [_           (error 'cmd->metasketch "invalid benchmark: ~a" cmd)]))
 

@@ -8,6 +8,7 @@
          "arrays/arraysearch.rkt"
          "sygus/qm/reference.rkt"
          "demos/example.rkt"
+         "msp430/regops.rkt"
          "../opsyn/metasketches/neural.rkt"
          "../opsyn/metasketches/stress-test.rkt")
 

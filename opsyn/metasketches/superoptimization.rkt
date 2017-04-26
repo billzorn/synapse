@@ -42,7 +42,8 @@
          #:arity arity   
          #:pre [pre void] 
          #:post [post void]
-         #:cost-model [cost-model sample-cost-model])
+         #:cost-model [cost-model sample-cost-model]
+         #:alt-minbw [alt-minbw void])
   (check-max-length 'superopt∑ maxlength)
   (imeta 
    #:arity arity
@@ -52,7 +53,7 @@
    #:post post
    #:structure superopt-structure
    #:cost (∑cost cost-model)
-   #:minbw (make-superopt-minbw arity)))
+   #:minbw (if (eq? alt-minbw void) (make-superopt-minbw arity) (lambda (S) alt-minbw))))
 
 (define (check-max-length caller maxlength)
   (unless (or (= maxlength +inf.0) (and (positive? maxlength) (integer? maxlength)))
