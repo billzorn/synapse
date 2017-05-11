@@ -169,6 +169,7 @@
 
     ; msp430 things
     [`(msp ,arity ,pre ,post) `(msp-general ,post ,arity #:pre ,pre)]
+    [`(msp-s ,arity ,pre ,post) `(msp-simpleop ,post ,arity #:pre ,pre)]
     [`(test) '(hd-d0 (list-ref all-hd-programs 0))]
     
     [`(,x) `(,x)]

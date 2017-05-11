@@ -204,3 +204,66 @@
                     [(bv-c bv-v) (dadd.b-compute c a b)])
         (unless (and (= observed-c bv-c) (= observed-v bv-v))
           (printf "~a ~a ~a - obs: ~a ~a, bv: ~a ~a~n" c a b observed-c observed-v bv-c bv-v))))))
+
+
+
+; simple ops (likely defined by 1-3 instruction bv programs)
+
+; sample some number of values from the data table and hope that the resulting assertions
+; are sufficient to more or less uniquely define the operation
+
+(define (iotab-sample->post samples)
+  (define (post P inputs)
+    (for* ([sample (in-vector samples)])
+      (let* ([inputs (take sample 3)]
+             [x (fourth sample)]
+             [assertion (= (interpret P inputs) x)])
+        (assert assertion))))
+  post)
+
+(define-values (xor.b-sample-c xor.b-sample-v)
+  (iotab-split-samples (iotab-fmt1-sample xor.b 512) 2))
+(define xor.b-sample-c/post (iotab-sample->post xor.b-sample-c))
+(define xor.b-sample-v/post (iotab-sample->post xor.b-sample-v))
+
+(define-values (add.b-sample-c add.b-sample-v)
+  (iotab-split-samples (iotab-fmt1-sample add.b 512) 2))
+(define add.b-sample-c/post (iotab-sample->post add.b-sample-c))
+(define add.b-sample-v/post (iotab-sample->post add.b-sample-v))
+
+(define-values (sub.b-sample-c sub.b-sample-v)
+  (iotab-split-samples (iotab-fmt1-sample sub.b 512) 2))
+(define sub.b-sample-c/post (iotab-sample->post sub.b-sample-c))
+(define sub.b-sample-v/post (iotab-sample->post sub.b-sample-v))
+
+(define-values (and.b-sample-c and.b-sample-v)
+  (iotab-split-samples (iotab-fmt1-sample and.b 512) 2))
+(define and.b-sample-c/post (iotab-sample->post and.b-sample-c))
+(define and.b-sample-v/post (iotab-sample->post and.b-sample-v))
+
+(define-values (cmp.b-sample-c cmp.b-sample-v)
+  (iotab-split-samples (iotab-fmt1-sample cmp.b 512) 2))
+(define cmp.b-sample-c/post (iotab-sample->post cmp.b-sample-c))
+(define cmp.b-sample-v/post (iotab-sample->post cmp.b-sample-v))
+
+(define (msp-simpleop post arity
+               #:finite? [finite? #t]
+               #:maxlength [maxlength 4]
+               #:cost-model [cost-model constant-cost-model]
+               #:pre (pre void))
+  (printf "msp-simpleop invoking superopt ~a ~a\n" post arity)
+  (superopt∑ #:instructions bvops
+             #:maxlength (if finite? maxlength +inf.0)
+             #:arity arity
+             #:pre   pre
+             #:post  post
+             #:cost-model cost-model))
+
+; Questions:
+; - is maxlength 4 the correct way to limit metasketches to 4 operations?
+; - how can we combine the two approaches?
+;   - run the simpleop solver until it's UNSAT, then look for an n4v style sketch?
+
+
+
+
