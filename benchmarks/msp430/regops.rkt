@@ -14,6 +14,10 @@
   (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
                (= (second inputs) (bitwise-and (second inputs) #xf))
                (= (third inputs) (bitwise-and (third inputs) #xf)))))
+
+; requires bitwidth == 8
+(define (valid-inputs-bt inputs)
+  (assert (and (= (first inputs) (bitwise-and (first inputs) #x1)))))
   
 (define (msp-general post arity
                #:finite? [finite? #f]
@@ -221,30 +225,28 @@
         (assert assertion))))
   post)
 
-(define-values (xor.b-sample-c xor.b-sample-v)
-  (iotab-split-samples (iotab-fmt1-sample xor.b 512) 2))
-(define xor.b-sample-c/post (iotab-sample->post xor.b-sample-c))
-(define xor.b-sample-v/post (iotab-sample->post xor.b-sample-v))
+(define-syntax-rule (define-iotab-post/sample iotab c/post v/post)
+  (begin
+    (define-values (sample-c sample-v)
+      (iotab-split-samples (iotab-fmt1-sample iotab 512) 2))
+    (define-values (c/post v/post)
+      (values (iotab-sample->post sample-c) (iotab-sample->post sample-v)))))
+  
+(define-iotab-post/sample xor.b xor.b-sample-c/post xor.b-sample-v/post)
+(define-iotab-post/sample add.b add.b-sample-c/post add.b-sample-v/post)
+(define-iotab-post/sample sub.b sub.b-sample-c/post sub.b-sample-v/post)
+(define-iotab-post/sample and.b and.b-sample-c/post and.b-sample-v/post)
+(define-iotab-post/sample cmp.b cmp.b-sample-c/post cmp.b-sample-v/post)
+(define-iotab-post/sample addc.b addc.b-sample-c/post addc.b-sample-v/post)
+(define-iotab-post/sample subc.b subc.b-sample-c/post subc.b-sample-v/post)
+(define-iotab-post/sample bic.b bic.b-sample-c/post bic.b-sample-v/post)
+(define-iotab-post/sample bis.b bis.b-sample-c/post bis.b-sample-v/post)
+(define-iotab-post/sample bit.b bit.b-sample-c/post bit.b-sample-v/post)
 
-(define-values (add.b-sample-c add.b-sample-v)
-  (iotab-split-samples (iotab-fmt1-sample add.b 512) 2))
-(define add.b-sample-c/post (iotab-sample->post add.b-sample-c))
-(define add.b-sample-v/post (iotab-sample->post add.b-sample-v))
+; These should probably _not_ find a valid result
 
-(define-values (sub.b-sample-c sub.b-sample-v)
-  (iotab-split-samples (iotab-fmt1-sample sub.b 512) 2))
-(define sub.b-sample-c/post (iotab-sample->post sub.b-sample-c))
-(define sub.b-sample-v/post (iotab-sample->post sub.b-sample-v))
+(define-iotab-post/sample dadd.b dadd.b-sample-c/post dadd.b-sample-v/post)
 
-(define-values (and.b-sample-c and.b-sample-v)
-  (iotab-split-samples (iotab-fmt1-sample and.b 512) 2))
-(define and.b-sample-c/post (iotab-sample->post and.b-sample-c))
-(define and.b-sample-v/post (iotab-sample->post and.b-sample-v))
-
-(define-values (cmp.b-sample-c cmp.b-sample-v)
-  (iotab-split-samples (iotab-fmt1-sample cmp.b 512) 2))
-(define cmp.b-sample-c/post (iotab-sample->post cmp.b-sample-c))
-(define cmp.b-sample-v/post (iotab-sample->post cmp.b-sample-v))
 
 (define (msp-simpleop post arity
                #:finite? [finite? #t]
@@ -266,4 +268,10 @@
 
 
 
+
+; Notes:
+; - there are two things which determine the parameters of a synthesis search:
+;    1. The assertions used (n4 carry-left, n4 carry-right, n8/16 sample)
+;    2. The parameters passed to superopt (maxlength [?], timeout, pre/post
+;    conditions (see above)
 
