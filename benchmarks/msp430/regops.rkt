@@ -1,5 +1,7 @@
 #lang s-exp rosette
 
+(require (for-syntax racket/syntax))
+
 (require "../../opsyn/bv/lang.rkt"  
          "../../opsyn/metasketches/superoptimization.rkt"  
          "../../opsyn/metasketches/cost.rkt")
@@ -16,8 +18,14 @@
                (= (third inputs) (bitwise-and (third inputs) #xf)))))
 
 ; requires bitwidth == 8
-(define (valid-inputs-bt inputs)
+(define (valid-inputs-b8 inputs)
   (assert (and (= (first inputs) (bitwise-and (first inputs) #x1)))))
+
+; requires bitwidth > 8
+(define (valid-inputs-b16 inputs)
+  (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
+               (= (second inputs) (bitwise-and (second inputs) #xff))
+               (= (third inputs) (bitwise-and (third inputs) #xff)))))
   
 (define (msp-general post arity
                #:finite? [finite? #f]
@@ -225,27 +233,43 @@
         (assert assertion))))
   post)
 
-(define-syntax-rule (define-iotab-post/sample iotab c/post v/post)
-  (begin
-    (define-values (sample-c sample-v)
-      (iotab-split-samples (iotab-fmt1-sample iotab 512) 2))
-    (define-values (c/post v/post)
-      (values (iotab-sample->post sample-c) (iotab-sample->post sample-v)))))
+(define-syntax (define-sample-post stx)
+  (syntax-case stx ()
+    [(_ iotab type value)
+     (with-syntax ([name (format-id #'iotab #:source #'iotab "~a-sample-~a/post" (syntax-e #'iotab) (syntax-e #'type))])
+       #'(define name value))]))
+
+; defines the following values (given e.g. an iotab called add.b):
+;  - add.b-sample-val/post
+;  - add.b-sample-c/post
+;  - add.b-sample-z/post
+;  - add.b-sample-v/post
+;  - add.b-sample-f/post
+(define-syntax-rule (define-iotab-post/sample iotab)
+  (begin (define-values (sample-val sample-c sample-z sample-n sample-v)
+      (iotab-split-samples (iotab-fmt1-sample iotab 512) 5))
+    (define-sample-post iotab val (iotab-sample->post sample-val))
+    (define-sample-post iotab c (iotab-sample->post sample-c))
+    (define-sample-post iotab z (iotab-sample->post sample-z))
+    (define-sample-post iotab n (iotab-sample->post sample-n))
+    (define-sample-post iotab v (iotab-sample->post sample-v))))
+
+; These should find a valid result in (less than) 4 instructions
   
-(define-iotab-post/sample xor.b xor.b-sample-c/post xor.b-sample-v/post)
-(define-iotab-post/sample add.b add.b-sample-c/post add.b-sample-v/post)
-(define-iotab-post/sample sub.b sub.b-sample-c/post sub.b-sample-v/post)
-(define-iotab-post/sample and.b and.b-sample-c/post and.b-sample-v/post)
-(define-iotab-post/sample cmp.b cmp.b-sample-c/post cmp.b-sample-v/post)
-(define-iotab-post/sample addc.b addc.b-sample-c/post addc.b-sample-v/post)
-(define-iotab-post/sample subc.b subc.b-sample-c/post subc.b-sample-v/post)
-(define-iotab-post/sample bic.b bic.b-sample-c/post bic.b-sample-v/post)
-(define-iotab-post/sample bis.b bis.b-sample-c/post bis.b-sample-v/post)
-(define-iotab-post/sample bit.b bit.b-sample-c/post bit.b-sample-v/post)
+(define-iotab-post/sample xor.b)
+(define-iotab-post/sample add.b)
+(define-iotab-post/sample sub.b)
+(define-iotab-post/sample and.b)
+(define-iotab-post/sample cmp.b)
+(define-iotab-post/sample addc.b)
+(define-iotab-post/sample subc.b)
+(define-iotab-post/sample bic.b)
+(define-iotab-post/sample bis.b)
+(define-iotab-post/sample bit.b)
 
-; These should probably _not_ find a valid result
+; These should probably _not_ find a valid result in 4 instructions
 
-(define-iotab-post/sample dadd.b dadd.b-sample-c/post dadd.b-sample-v/post)
+(define-iotab-post/sample dadd.b)
 
 
 (define (msp-simpleop post arity
@@ -260,14 +284,6 @@
              #:pre   pre
              #:post  post
              #:cost-model cost-model))
-
-; Questions:
-; - is maxlength 4 the correct way to limit metasketches to 4 operations?
-; - how can we combine the two approaches?
-;   - run the simpleop solver until it's UNSAT, then look for an n4v style sketch?
-
-
-
 
 ; Notes:
 ; - there are two things which determine the parameters of a synthesis search:
