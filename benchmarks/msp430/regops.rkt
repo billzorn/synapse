@@ -224,11 +224,11 @@
 ; sample some number of values from the data table and hope that the resulting assertions
 ; are sufficient to more or less uniquely define the operation
 
-(define (iotab-sample->post samples)
+(define (iotab-sample->post samples arity result-ind)
   (define (post P inputs)
     (for* ([sample (in-vector samples)])
-      (let* ([inputs (take sample 3)]
-             [x (fourth sample)]
+      (let* ([inputs (take sample arity)]
+             [x (list-ref sample result-ind)]
              [assertion (= (interpret P inputs) x)])
         (assert assertion))))
   post)
@@ -246,15 +246,19 @@
 ;  - add.b-sample-v/post
 ;  - add.b-sample-f/post
 (define-syntax-rule (define-iotab-post/sample iotab)
-  (begin (define-values (sample-val sample-c sample-z sample-n sample-v)
-      (iotab-split-samples (iotab-fmt1-sample iotab 512) 5))
-    (define-sample-post iotab val (iotab-sample->post sample-val))
-    (define-sample-post iotab c (iotab-sample->post sample-c))
-    (define-sample-post iotab z (iotab-sample->post sample-z))
-    (define-sample-post iotab n (iotab-sample->post sample-n))
-    (define-sample-post iotab v (iotab-sample->post sample-v))))
+  (begin (define samples (iotab-fmt1-sample iotab 512))
+    (define-sample-post iotab val (iotab-sample->post samples 3 3))
+    (define-sample-post iotab c (iotab-sample->post samples 4 4))
+    (define-sample-post iotab z (iotab-sample->post samples 4 5))
+    (define-sample-post iotab n (iotab-sample->post samples 4 6))
+    (define-sample-post iotab v (iotab-sample->post samples 4 7))))
 
-; These should find a valid result in (less than) 4 instructions
+; Note: the postconditions for the flags have an arity of 4, because they can
+; also use the result of the computation as part of the computation of the flag
+; value.
+
+; These should find a valid result in (less than) 4 instructions for most values
+; and flags. Notable exceptions: overflow flag for add.b
   
 (define-iotab-post/sample xor.b)
 (define-iotab-post/sample add.b)
@@ -277,7 +281,6 @@
                #:maxlength [maxlength 4]
                #:cost-model [cost-model constant-cost-model]
                #:pre (pre void))
-  (printf "msp-simpleop invoking superopt ~a ~a\n" post arity)
   (superopt∑ #:instructions bvops
              #:maxlength (if finite? maxlength +inf.0)
              #:arity arity
