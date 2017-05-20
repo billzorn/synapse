@@ -6,8 +6,8 @@
          "../../opsyn/metasketches/superoptimization.rkt"  
          "../../opsyn/metasketches/cost.rkt")
 
-(require "../../../SAT/msp430/process-measurements.rkt"
-         "../../../SAT/data/iotabs.rkt")
+(require "../../../msp430/process-measurements.rkt"
+         "../../../data/iotabs.rkt")
 
 (provide (all-defined-out))
 
@@ -46,7 +46,7 @@
         bvneg bvredor bvxor bvsle bvslt bveq bvule bvult))
 
 (define bvops8
-  (list (bv 0) (bv 1) (bv 7) (bv 8) (bv #b80) (bv #x100)
+  (list (bv 0) (bv 1) (bv 7) (bv 8) (bv #x80) (bv #x100)
         bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
         bvneg bvredor bvxor bveq))
 
@@ -290,7 +290,7 @@
                #:maxlength [maxlength 4]
                #:cost-model [cost-model constant-cost-model]
                #:pre (pre void))
-  (superopt∑ #:instructions bvops-nocmp
+  (superopt∑ #:instructions bvops8
              #:maxlength (if finite? maxlength +inf.0)
              #:arity arity
              #:pre   pre
