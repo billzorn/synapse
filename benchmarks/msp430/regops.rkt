@@ -1,7 +1,5 @@
 #lang s-exp rosette
 
-(require (for-syntax racket/syntax))
-
 (require "../../opsyn/bv/lang.rkt"  
          "../../opsyn/metasketches/superoptimization.rkt"  
          "../../opsyn/metasketches/cost.rkt")
@@ -40,20 +38,10 @@
              #:post  post
              #:cost-model cost-model))
 
-(define bvops8-cmp
+(define bvops
   (list (bv 0) (bv 1) (bv 7) (bv 8) (bv #x80) (bv #x100)
         bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
         bvneg bvredor bvxor bvsle bvslt bveq bvule bvult))
-
-(define bvops8
-  (list (bv 0) (bv 1) (bv 7) (bv 8) (bv #x80) (bv #x100)
-        bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
-        bvneg bvredor bvxor bveq))
-
-(define bvops16
-  (list (bv 0) (bv 1) (bv 15) (bv 16) (bv #x8000) (bv #x10000)
-        bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
-        bvneg bvredor bvxor bveq))
 
 (define bvops-addc
   (list (bv 15) bvadd bvand))
@@ -227,79 +215,4 @@
           (printf "~a ~a ~a - obs: ~a ~a, bv: ~a ~a~n" c a b observed-c observed-v bv-c bv-v))))))
 
 
-
-; simple ops (likely defined by 1-3 instruction bv programs)
-
-; sample some number of values from the data table and hope that the resulting assertions
-; are sufficient to more or less uniquely define the operation
-
-(define (iotab-sample->post samples arity result-ind)
-  (define (post P inputs)
-    (for* ([sample (in-vector samples)])
-      (let* ([inputs (take sample arity)]
-             [x (list-ref sample result-ind)]
-             [assertion (= (bitwise-and (interpret P inputs) #xff) x)])
-        (assert assertion))))
-  post)
-
-(define-syntax (define-sample-post stx)
-  (syntax-case stx ()
-    [(_ iotab type value)
-     (with-syntax ([name (format-id #'iotab #:source #'iotab "~a-sample-~a/post" (syntax-e #'iotab) (syntax-e #'type))])
-       #'(define name value))]))
-
-; defines the following values (given e.g. an iotab called add.b):
-;  - add.b-sample-val/post
-;  - add.b-sample-c/post
-;  - add.b-sample-z/post
-;  - add.b-sample-v/post
-;  - add.b-sample-f/post
-(define-syntax-rule (define-iotab-post/sample iotab)
-  (begin (define samples (iotab-fmt1-sample iotab 512))
-    (define-sample-post iotab val (iotab-sample->post samples 3 3))
-    (define-sample-post iotab c (iotab-sample->post samples 4 4))
-    (define-sample-post iotab z (iotab-sample->post samples 4 5))
-    (define-sample-post iotab n (iotab-sample->post samples 4 6))
-    (define-sample-post iotab v (iotab-sample->post samples 4 7))))
-
-; Note: the postconditions for the flags have an arity of 4, because they can
-; also use the result of the computation as part of the computation of the flag
-; value.
-
-; These should find a valid result in (less than) 4 instructions for most values
-; and flags. Notable exceptions: overflow flag for add.b
-  
-(define-iotab-post/sample xor.b)
-(define-iotab-post/sample add.b)
-(define-iotab-post/sample sub.b)
-(define-iotab-post/sample and.b)
-(define-iotab-post/sample cmp.b)
-(define-iotab-post/sample addc.b)
-(define-iotab-post/sample subc.b)
-(define-iotab-post/sample bic.b)
-(define-iotab-post/sample bis.b)
-(define-iotab-post/sample bit.b)
-
-; These should probably _not_ find a valid result in 4 instructions
-
-(define-iotab-post/sample dadd.b)
-
-
-(define (msp-simpleop post arity
-               #:finite? [finite? #t]
-               #:maxlength [maxlength 4]
-               #:cost-model [cost-model constant-cost-model]
-               #:pre (pre void))
-  (superopt∑ #:instructions bvops8
-             #:maxlength (if finite? maxlength +inf.0)
-             #:arity arity
-             #:pre   pre
-             #:post  post
-             #:cost-model cost-model))
-
-; Notes:
-; - there are two things which determine the parameters of a synthesis search:
-;    1. The assertions used (n4 carry-left, n4 carry-right, n8/16 sample)
-;    2. The parameters passed to superopt (maxlength [?], timeout, pre/post
-;    conditions (see above)
 

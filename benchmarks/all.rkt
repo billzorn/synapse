@@ -8,9 +8,10 @@
          "arrays/arraysearch.rkt"
          "sygus/qm/reference.rkt"
          "demos/example.rkt"
-         "msp430/regops.rkt"
          "../opsyn/metasketches/neural.rkt"
-         "../opsyn/metasketches/stress-test.rkt")
+         "../opsyn/metasketches/stress-test.rkt"
+         "msp430/regops.rkt"
+         "../../engine/framework-synth.rkt")
 
 (provide eval-metasketch)
 
