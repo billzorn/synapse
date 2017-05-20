@@ -40,11 +40,20 @@
              #:post  post
              #:cost-model cost-model))
 
-(define bvops 
-  (list (bv 0) (bv 1) (bv 6) (bv 9) (bv 10) (bv 15)
+(define bvops8-cmp
+  (list (bv 0) (bv 1) (bv 7) (bv 8) (bv #x80) (bv #x100)
         bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
-        bvneg bvredor bvxor bvsle bvslt bveq bvule bvult 
-        bvmul bvsdiv bvsrem bvudiv bvurem))
+        bvneg bvredor bvxor bvsle bvslt bveq bvule bvult))
+
+(define bvops8
+  (list (bv 0) (bv 1) (bv 7) (bv 8) (bv #b80) (bv #x100)
+        bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
+        bvneg bvredor bvxor bveq))
+
+(define bvops16
+  (list (bv 0) (bv 1) (bv 15) (bv 16) (bv #x8000) (bv #x10000)
+        bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
+        bvneg bvredor bvxor bveq))
 
 (define bvops-addc
   (list (bv 15) bvadd bvand))
@@ -229,7 +238,7 @@
     (for* ([sample (in-vector samples)])
       (let* ([inputs (take sample arity)]
              [x (list-ref sample result-ind)]
-             [assertion (= (interpret P inputs) x)])
+             [assertion (= (bitwise-and (interpret P inputs) #xff) x)])
         (assert assertion))))
   post)
 
@@ -281,7 +290,7 @@
                #:maxlength [maxlength 4]
                #:cost-model [cost-model constant-cost-model]
                #:pre (pre void))
-  (superopt∑ #:instructions bvops
+  (superopt∑ #:instructions bvops-nocmp
              #:maxlength (if finite? maxlength +inf.0)
              #:arity arity
              #:pre   pre
