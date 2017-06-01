@@ -15,16 +15,6 @@
                (= (second inputs) (bitwise-and (second inputs) #xf))
                (= (third inputs) (bitwise-and (third inputs) #xf)))))
 
-; requires bitwidth == 8
-(define (valid-inputs-b8 inputs)
-  (assert (and (= (first inputs) (bitwise-and (first inputs) #x1)))))
-
-; requires bitwidth > 8
-(define (valid-inputs-b16 inputs)
-  (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
-               (= (second inputs) (bitwise-and (second inputs) #xff))
-               (= (third inputs) (bitwise-and (third inputs) #xff)))))
-  
 (define (msp-general post arity
                #:finite? [finite? #f]
                #:maxlength [maxlength 8]
