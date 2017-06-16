@@ -61,8 +61,8 @@
 
   ; ------------ special cpu modelling instructions --------------- ;
   [bit8 unary] [bit9 unary] [bit16 unary] [bit17 unary] 
-  [nop unary] [eq0 unary] [bvlnot unary]
-  [isneg unary] [ispos unary] 
+  [pass unary] [eq0 unary] [bvlnot unary]
+  ;[isneg unary] [ispos unary] 
   [samesign8 binary] [diffsign8 binary]
 
   ; ------------ special DADD instructions --------------- ;
@@ -176,27 +176,27 @@
       [(shl1 r1)      (store idx (<< (load r1) 1))]
       [(if0 r1 r2 r3) (store idx (if (= (load r1) 1) (load r2) (load r3)))]
 
-      [(bit8 r1)      (store idx (>>> (bvand (load r1) #x80) 7))]
-      [(bit9 r1)      (store idx (>>> (bvand (load r1) #x100) 8))]
-      [(bit16 r1)     (store idx (>>> (bvand (load r1) #x8000) 15))]
-      [(bit17 r1)     (store idx (>>> (bvand (load r1) #x10000) 16))]
+      [(bit8 r1)      (store idx (bitwise-and #x1 (arithmetic-shift (load r1) -7)))]
+      [(bit9 r1)      (store idx (bitwise-and #x1 (arithmetic-shift (load r1) -8)))]
+      [(bit16 r1)     (store idx (bitwise-and #x1 (arithmetic-shift (load r1) -15)))]
+      [(bit17 r1)     (store idx (bitwise-and #x1 (arithmetic-shift (load r1) -16)))]
       [(eq0 r1)       (store idx (if (= (load r1) 0) 1 0))]
-      [(bvlnot r1)    (store idx (bvand (bvnot (load r1)) #x1))]
-      [(isneg r1)     (store idx (bvscmp < (load r1) 0))]
-      [(ispos r1)     (store idx (bvscmp > (load r1) 0))]
-      [(nop r1)       (store idx (load r1))]
-;      [(samesign8 r1 r2)     (store idx (bvand 
-;                                          (bvor (bvand (>>> (load r1) 7)
-;                                                       (>>> (load r2) 7))
-;                                                (bvand (bvnot (>>> (load r1) 7))
-;                                                       (bvnot (>>> (load r2) 7))))
-;                                          #x1))]
-;      [(diffsign8 r1 r2)     (store idx (bvand 
-;                                          (bvnot (bvor (bvand (>>> (load r1) 7)
-;                                                              (>>> (load r2) 7))
-;                                                       (bvand (bvnot (>>> (load r1) 7))
-;                                                              (bvnot (>>> (load r2) 7)))))
-;                                          #x1))]
+      [(bvlnot r1)    (store idx (bitwise-and (bitwise-not (load r1)) #x1))]
+      ;[(isneg r1)     (store idx (bvscmp < (load r1) 0))]
+      ;[(ispos r1)     (store idx (bvscmp > (load r1) 0))]
+      [(pass r1)       (store idx (load r1))]
+      [(samesign8 r1 r2)     (store idx (bitwise-and
+                                          (bitwise-ior (bitwise-and (arithmetic-shift (load r1) -7)
+                                                                    (arithmetic-shift (load r2) -7))
+                                                       (bitwise-and (bitwise-not (arithmetic-shift (load r1) -7))
+                                                                    (bitwise-not (arithmetic-shift (load r2) -7))))
+                                          #x1))]
+      [(diffsign8 r1 r2)     (store idx (bitwise-and
+                                          (bitwise-not (bitwise-ior (bitwise-and (arithmetic-shift (load r1) -7)
+                                                                                 (arithmetic-shift (load r2) -7))
+                                                                    (bitwise-and (bitwise-not (arithmetic-shift (load r1) -7))
+                                                                                 (bitwise-not (arithmetic-shift (load r2) -7)))))
+                                          #x1))]
 
       ;; apparently used by the msp430 - use exactly 5 bits
       [(msp_dcarry r1)(store idx (if (or (> (load r1) 9) (< (load r1) 0)) (+ (load r1) 6) (load r1)))]
