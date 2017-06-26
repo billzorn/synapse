@@ -129,6 +129,9 @@
 
 ; ------------ semantics ------------ ;  
 
+(define-syntax-rule (b8 x) (bitwise-and (>>> x 7) #x1))
+(define-syntax-rule (bnot x) (bitwise-and (bitwise-not x) #x1))
+
 ; Interprets the given program on the given list of inputs.
 (define (interpret prog inputs)
   (unless (= (program-inputs prog) (length inputs))
@@ -176,27 +179,20 @@
       [(shl1 r1)      (store idx (<< (load r1) 1))]
       [(if0 r1 r2 r3) (store idx (if (= (load r1) 1) (load r2) (load r3)))]
 
-      [(bit8 r1)      (store idx (bitwise-and #x1 (arithmetic-shift (load r1) -7)))]
-      [(bit9 r1)      (store idx (bitwise-and #x1 (arithmetic-shift (load r1) -8)))]
-      [(bit16 r1)     (store idx (bitwise-and #x1 (arithmetic-shift (load r1) -15)))]
-      [(bit17 r1)     (store idx (bitwise-and #x1 (arithmetic-shift (load r1) -16)))]
+      [(bit8 r1)      (store idx (bitwise-and #x1 (>>> (load r1) 7)))]
+      [(bit9 r1)      (store idx (bitwise-and #x1 (>>> (load r1) 8)))]
+      [(bit16 r1)     (store idx (bitwise-and #x1 (>>> (load r1) 15)))]
+      [(bit17 r1)     (store idx (bitwise-and #x1 (>>> (load r1) 16)))]
       [(eq0 r1)       (store idx (if (= (load r1) 0) 1 0))]
       [(bvlnot r1)    (store idx (bitwise-and (bitwise-not (load r1)) #x1))]
       ;[(isneg r1)     (store idx (bvscmp < (load r1) 0))]
       ;[(ispos r1)     (store idx (bvscmp > (load r1) 0))]
       [(pass r1)       (store idx (load r1))]
-      [(samesign8 r1 r2)     (store idx (bitwise-and
-                                          (bitwise-ior (bitwise-and (arithmetic-shift (load r1) -7)
-                                                                    (arithmetic-shift (load r2) -7))
-                                                       (bitwise-and (bitwise-not (arithmetic-shift (load r1) -7))
-                                                                    (bitwise-not (arithmetic-shift (load r2) -7))))
-                                          #x1))]
-      [(diffsign8 r1 r2)     (store idx (bitwise-and
-                                          (bitwise-not (bitwise-ior (bitwise-and (arithmetic-shift (load r1) -7)
-                                                                                 (arithmetic-shift (load r2) -7))
-                                                                    (bitwise-and (bitwise-not (arithmetic-shift (load r1) -7))
-                                                                                 (bitwise-not (arithmetic-shift (load r2) -7)))))
-                                          #x1))]
+      [(samesign8 r1 r2)  (store idx (bitwise-ior (bitwise-and (b8 (load r1)) (b8 (load r2)))
+                                                  (bitwise-and (bnot (b8 (load r1))) (bnot (b8 (load r2))))))]
+                                    
+      [(diffsign8 r1 r2)  (store idx (bitwise-not (bitwise-ior (bitwise-and (b8 (load r1)) (b8 (load r2)))
+                                                               (bitwise-and (bnot (b8 (load r1))) (bnot (b8 (load r2)))))))]
 
       ;; apparently used by the msp430 - use exactly 5 bits
       [(msp_dcarry r1)(store idx (if (or (> (load r1) 9) (< (load r1) 0)) (+ (load r1) 6) (load r1)))]
