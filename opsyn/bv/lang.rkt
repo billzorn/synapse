@@ -64,6 +64,7 @@
   [pass unary] [eq0 unary] [bvlnot unary]
   ;[isneg unary] [ispos unary] 
   [samesign8 binary] [diffsign8 binary]
+  [samesign16 binary] [diffsign16 binary]
 
   ; ------------ special DADD instructions --------------- ;
   [msp_dcarry unary]
@@ -130,6 +131,7 @@
 ; ------------ semantics ------------ ;  
 
 (define-syntax-rule (b8 x) (bitwise-and (>>> x 7) #x1))
+(define-syntax-rule (b16 x) (bitwise-and (>>> x 15) #x1))
 (define-syntax-rule (bnot x) (bitwise-and (bitwise-not x) #x1))
 
 ; Interprets the given program on the given list of inputs.
@@ -193,6 +195,11 @@
                                     
       [(diffsign8 r1 r2)  (store idx (bitwise-not (bitwise-ior (bitwise-and (b8 (load r1)) (b8 (load r2)))
                                                                (bitwise-and (bnot (b8 (load r1))) (bnot (b8 (load r2)))))))]
+      [(samesign16 r1 r2)  (store idx (bitwise-ior (bitwise-and (b16 (load r1)) (b16 (load r2)))
+                                                   (bitwise-and (bnot (b16 (load r1))) (bnot (b16 (load r2))))))]
+                                    
+      [(diffsign16 r1 r2)  (store idx (bitwise-not (bitwise-ior (bitwise-and (b16 (load r1)) (b16 (load r2)))
+                                                                (bitwise-and (bnot (b16 (load r1))) (bnot (b16 (load r2)))))))]
 
       ;; apparently used by the msp430 - use exactly 5 bits
       [(msp_dcarry r1)(store idx (if (or (> (load r1) 9) (< (load r1) 0)) (+ (load r1) 6) (load r1)))]
