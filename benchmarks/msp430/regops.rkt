@@ -5,7 +5,7 @@
          "../../opsyn/metasketches/cost.rkt")
 
 (require "../../../msp430/process-measurements.rkt"
-         "../../../data/iotabs.rkt")
+         "../../../synth/data/iotabs.rkt")
 
 (provide (all-defined-out))
 
