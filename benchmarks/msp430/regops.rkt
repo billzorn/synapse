@@ -4,7 +4,7 @@
          "../../opsyn/metasketches/superoptimization.rkt"  
          "../../opsyn/metasketches/cost.rkt")
 
-(require "../../../msp430/process-measurements.rkt"
+(require "../../../meas/process-measurements.rkt"
          "../../../synth/data/iotabs.rkt")
 
 (provide (all-defined-out))
