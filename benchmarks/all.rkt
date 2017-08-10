@@ -11,7 +11,7 @@
          "../opsyn/metasketches/neural.rkt"
          "../opsyn/metasketches/stress-test.rkt"
          "msp430/regops.rkt"
-         "../../synth/synth-utils.rkt")
+         "../cpumodel/synth-utils.rkt")
 
 (provide eval-metasketch)
 
