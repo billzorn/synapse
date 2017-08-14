@@ -77,31 +77,19 @@
          (for/list ([i (in-range n)])
            (vector-map (lambda (x) (list-ref x i)) iotab))))
 
-(define (iotab-sample.b iotab sr a b)
-  (append (list (sr-carry sr) a b) 
-    (iotab-entry-separate (iotab-lookup-fmt1 iotab (list sr a b)))))
-
-(define (iotab-sample.w iotab sr a b)
+(define (iotab-sample iotab sr a b)
   (let ([sample (hash-ref iotab (list sr a b) null)])
     (if (null? sample) #f
       (append (list (sr-carry sr) a b) (iotab-entry-separate sample)))))
 
-(define (iotab-fmt1.b-sample iotab nsamples)
-  (for/vector #:length nsamples
-              ([i (in-range nsamples)])
-    (let ([a (random 256)] 
-          [b (random 256)] 
-          [sr (random 16)])
-      (iotab-sample.b iotab sr a b))))
-
-(define (iotab-fmt1.w-sample iotab nsamples)
+(define (iotab-fmt1-sample iotab nsamples)
   ; local function for tail recursion
   (letrec ([f (λ (n v)
     (if (= n -1) v 
       (let* ([a (random 65536)]
              [b (random 65536)]
              [sr (random 16)]
-             [sample (iotab-sample.w iotab sr a b)])
+             [sample (iotab-sample iotab sr a b)])
         ; keep trying until we get a sample that exists
         (if (equal? sample #f) 
           (f n v)

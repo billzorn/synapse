@@ -5,7 +5,6 @@
 (require "../opsyn/bv/lang.rkt"  
          "../opsyn/metasketches/superoptimization.rkt"  
          "../opsyn/metasketches/cost.rkt"
-         "../benchmarks/msp430/regops.rkt"
          "iotab.rkt")
 
 (provide (all-defined-out))
@@ -68,11 +67,10 @@
       "-samples.rkt.tmp")))
 
 ; NOTE: only runs on the parent, so we can reference iotab directly
-(define (iotab-generate-samples iotab-file iotab #:nsamples (nsamples 64) #:width (width 8))
-  (let ([sample-fn (if (= width 8) iotab-fmt1.b-sample iotab-fmt1.w-sample)])
+(define (iotab-generate-samples iotab-file iotab #:nsamples (nsamples 64))
     (with-output-to-file #:exists 'replace
       (iotab-samples.rkt iotab-file)
-      (thunk (write (sample-fn iotab nsamples))))))
+      (thunk (write (iotab-fmt1-sample iotab nsamples)))))
 
 (define (iotab-add-sample iotab-file sample)
   (let ([samples (with-input-from-file (iotab-samples.rkt iotab-file) read)])

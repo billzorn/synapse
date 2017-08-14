@@ -11,7 +11,7 @@
 
 (define timeout (make-parameter 1800))
 (define threads (make-parameter 2))
-(define width (make-parameter 8))
+(define bitwidth (make-parameter 8))
 (define arity (make-parameter 3))
 (define index (make-parameter 0))
 (define maxlength (make-parameter 4))
@@ -37,7 +37,7 @@
   [("-w" "--width") w ("Bitwidth to use for synthesis."
                        "In order to correctly handle overflow, operations will actually"
                        "be performed at bitwidth one greater than that provided here.")
-                    (width (string->number w))]
+                    (bitwidth (string->number w))]
   [("-a" "--arity") a ("The number of inputs to the operation (default 4)."
                        "This will determine how many values from the io table entry are"
                        "available to synthesized operations.")
@@ -68,20 +68,20 @@
   (if (file-exists? iotab-file-name) 
     (begin (iotab-file iotab-file-name)
            (iotab (load-iotab iotab-file-name)) 
-           (iotab-generate-samples (iotab-file) (iotab) #:nsamples (nsamples) #:width (width)))
+           (iotab-generate-samples (iotab-file) (iotab) #:nsamples (nsamples)))
     (begin (printf "No such file: ~a\n" iotab-file-name) (exit))))
 
 ; Utilities for synthesis
 
 ; Macro that calls synapse search directly
 (define-syntax-rule (synthesize-op precond postcond)
-  (let ([sketch (case (width)
+  (let ([sketch (case (bitwidth)
                   [(8) `bvop.b-simple]
                   [(16) `bvop.w-simple])])
     (search #:metasketch `(,sketch ,postcond ,(arity) #:pre ,precond #:maxlength ,(maxlength))
             #:threads (threads)
             #:timeout (timeout)
-            #:bitwidth (+ (width) 1)
+            #:bitwidth (+ (bitwidth) 1)
             #:exchange-samples #t
             #:exchange-costs #t
             #:use-structure #t
@@ -107,48 +107,33 @@
             (vector-set! statements i s))))
       (vector-ref statements (- (vector-length statements) 1)))))
 
-; Macro to aid in iterating over different types of iotabs
-;   TODO unify iotab format so this becomes unnecessary
-(define-syntax (for-samples stx)
-  (syntax-case stx ()
-    [(_ [tab width] [sample a b c] body ...)
-     #'(case width
-         [(8) (for* ([c (in-range 2)]
-                     [a (in-range (arithmetic-shift 1 width))]
-                     [b (in-range (arithmetic-shift 1 width))])
-                (define sample (iotab-sample.b tab c a b))
-                body ...)]
-         [(16) (for ([kv (in-list (hash->list tab))])
-                 (define-values (key value) (values (first kv) (list-tail kv 1)))
-                 (define-values (c a b) (values (sr-carry (first key)) (second key) (third key)))
-                 (define sample (append (cons (sr-carry (first key)) (rest key)) (iotab-entry-separate value)))
-                 body ...)])]))
-
 ; Perform the actual synthesis (and iterative check)
-
-(let* ([pre (case (width)
+(let* ([pre (case (bitwidth)
                 [(8) `valid-inputs.b]
                 [(16) `valid-inputs.w])]
        [post `(iotab-sample->post ,(iotab-samples.rkt (iotab-file)) 
-                                  #:arity ,(arity )
+                                  #:arity ,(arity)
                                   #:index ,(+ (arity) (index)) 
-                                  #:width ,(width))]
+                                  #:width ,(bitwidth))]
        [tab (iotab)]
        [sat #t])
 (define (check)
   (set! sat #t)
   (let ([p (synthesize-op pre post)])
     (if (equal? p #f) #f
-      (for-samples [tab width] [sample a b c]
+      (for ([kv (in-list (hash->list tab))])
         #:break (not sat)
+        (define-values (key value) (values (first kv) (list-tail kv 1)))
+        (define-values (c a b) (values (sr-carry (first key)) (second key) (third key)))
+        (define sample (append (cons (sr-carry (first key)) (rest key)) (iotab-entry-separate value)))
         (define result (list-ref sample 3))
         (define inputs (list c a b result))
         (define val (list-ref sample (+ (arity) (index))))
-        (set! sat (eq-under-width width (interpret p (take inputs arity)) val))
+        (set! sat (eq-under-width (bitwidth) (interpret p (take inputs (arity))) val))
         (unless sat (begin ;(printf "Program ~v doesn't satisfy iotab for ~a, ~a (was ~a, should be ~a), adding ~a to sample set\n" p a b (interpret p (take inputs arity)) val inputs)
                            (iotab-add-sample (iotab-file) sample)))))
     (if sat (result p) (check))))
-(parameterize ([current-bitwidth (+ (width) 1)])
+(parameterize ([current-bitwidth (+ (bitwidth) 1)])
   (check)))
 
 (printf "~a\n" (program->string (result)))
