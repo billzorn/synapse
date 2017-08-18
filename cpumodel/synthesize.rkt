@@ -101,7 +101,8 @@
       (for ([i (in-range (vector-length statements))])
         (if (< i arity)
           (vector-set! statements i (list-ref args i))
-          (let ([s (format "~v" (list-ref (program-instructions p) (- i arity)))])
+          (let* ([instr (list-ref (program-instructions p) (- i arity))]
+                 [s (if (bv? instr) (format "(bv #x~a)" (~r (unary-r1 instr))) (format "~v" instr))])
             (for ([j (in-range i)])
               (set! s (string-replace s (format " ~a" j) (string-append " " (vector-ref statements j)))))
             (vector-set! statements i s))))
@@ -136,7 +137,7 @@
 (parameterize ([current-bitwidth (+ (bitwidth) 1)])
   (check)))
 
-(printf "~a\n" (program->string (result)))
+(printf "~a" (program->string (result)))
 
 ; Notes:
 ; - there are two things which determine the parameters of a synthesis search:

@@ -34,12 +34,12 @@
              #:cost-model cost-model))
 
 (define bvops.b
-  (list (bv 0) (bv 1) (bv #xf) bit8 bit9
+  (list (bv #x0) (bv #x1) (bv #xf) bit8 bit9
         bvadd bvsub bvand bvor bvnot bvneg bvxor bveq
         pass eq0 samesign8 diffsign8 shr4 msp_dcarry))
 
 (define bvops.w
-  (list (bv 0) (bv 1) bit16 bit17
+  (list (bv #x0) (bv #x1) bit16 bit17
         bvadd bvsub bvand bvor bvnot bvneg bvxor bveq
         pass eq0 samesign16 diffsign16))
 
