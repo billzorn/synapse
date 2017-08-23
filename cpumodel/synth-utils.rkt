@@ -9,34 +9,27 @@
 
 (provide (all-defined-out))
 
-(define (bvop.b-simple post arity
+(define (bvop-simple ops post arity
                #:finite? [finite? #t]
                #:maxlength [maxlength 4]
                #:cost-model [cost-model constant-cost-model]
                #:pre (pre void))
-  (superopt∑ #:instructions bvops.b
+  (superopt∑ #:instructions ops
              #:maxlength (if finite? maxlength +inf.0)
              #:arity arity
              #:pre   pre
              #:post  post
              #:cost-model cost-model))
 
-(define (bvop.w-simple post arity
-               #:finite? [finite? #t]
-               #:maxlength [maxlength 4]
-               #:cost-model [cost-model constant-cost-model]
-               #:pre (pre void))
-  (superopt∑ #:instructions bvops.w
-             #:maxlength (if finite? maxlength +inf.0)
-             #:arity arity
-             #:pre   pre
-             #:post  post
-             #:cost-model cost-model))
+(define bvops-nt
+  (list (bv #x1) (bv #xf)
+        bvadd bvsub bvand bvor bvnot bvneg bvxor bveq
+        pass eq0 shr4 (bv #x0) msp_dcarry))
 
 (define bvops.b
   (list (bv #x0) (bv #x1) (bv #xf) bit8 bit9
         bvadd bvsub bvand bvor bvnot bvneg bvxor bveq
-        pass eq0 samesign8 diffsign8 shr4 msp_dcarry))
+        pass eq0 samesign8 diffsign8))
 
 (define bvops.w
   (list (bv #x0) (bv #x1) bit16 bit17
@@ -47,12 +40,16 @@
   (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
                (= (second inputs) (bitwise-and (second inputs) #xff))
                (= (third inputs) (bitwise-and (third inputs) #xff)))))
-               ;(= (fourth inputs) (bitwise-and (fourth inputs) #xff)))))
 
 (define (valid-inputs.w inputs)
   (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
                (= (second inputs) (bitwise-and (second inputs) #xffff))
                (= (third inputs) (bitwise-and (third inputs) #xffff)))))
+
+(define (valid-inputs-nt inputs)
+  (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
+               (= (second inputs) (bitwise-and (second inputs) #xf))
+               (= (third inputs) (bitwise-and (third inputs) #xf)))))
 
 ; Utilities for passing samples between the harness and synapse worker processes
 
@@ -65,12 +62,6 @@
       (last (string-split iotab-file "/")) 
       ".rkt" 
       "-samples.rkt.tmp")))
-
-; NOTE: only runs on the parent, so we can reference iotab directly
-(define (iotab-generate-samples iotab-file iotab #:nsamples (nsamples 64))
-    (with-output-to-file #:exists 'replace
-      (iotab-samples.rkt iotab-file)
-      (thunk (write (iotab-fmt1-sample iotab nsamples)))))
 
 (define (iotab-add-sample iotab-file sample)
   (let ([samples (with-input-from-file (iotab-samples.rkt iotab-file) read)])

@@ -16,20 +16,27 @@
 (define index (make-parameter 0))
 (define maxlength (make-parameter 4))
 (define nsamples (make-parameter 64))
+(define strategy (make-parameter 'full))
 
 (define iotab-file (make-parameter ""))
 (define iotab (make-parameter (void)))
 
 (define result (make-parameter #f))
 
-; Utility functions
-(define (load-iotab file)
-  (with-input-from-file file (λ () 
-    (let ([tab (make-hash)] [pair (read)])
-      (for ([i (in-naturals)] #:break (eof-object? pair))
-        (hash-set! tab (first pair) (rest pair))
-        (set! pair (read)))
-      tab))))
+(define (lookup-strat s)
+  (case s
+    [("n4-up") 'n4-up]
+    [("full") 'full]
+    [else (error "invalid strategy specified")]))
+
+(define (iotab-generate-samples iotab-file iotab)
+  (let ([sample
+          (case (strategy)
+            [(full) (iotab-fmt1-sample (bitwidth) (nsamples))]
+            [(n4-up) iotab-n4-sample])])
+    (with-output-to-file #:exists 'replace
+      (iotab-samples.rkt iotab-file)
+      (thunk (write (sample iotab))))))
 
 ; Command line parsing
 (command-line 
@@ -38,7 +45,7 @@
                        "In order to correctly handle overflow, operations will actually"
                        "be performed at bitwidth one greater than that provided here.")
                     (bitwidth (string->number w))]
-  [("-a" "--arity") a ("The number of inputs to the operation (default 4)."
+  [("-a" "--arity") a ("The number of inputs to the operation (default 3 -- input SR, op1 and op2)."
                        "This will determine how many values from the io table entry are"
                        "available to synthesized operations.")
                     (arity (string->number a))]
@@ -57,6 +64,9 @@
                           "More samples will take longer to evaluate, but will have a better"
                           "chance of capturing the complete behavior of the operation.")
                        (nsamples (string->number n))]
+  [("-s" "--strategy") s ("Strategy to use for synthesis. Available values:"
+                          "  full, n4-up")
+                       (strategy (lookup-strat s))]
   [("-j" "--jobs" "--threads") j ("Number of jobs to use for synthesis.")
                                (threads (string->number j))]
   [("-t" "--timeout") t ("Timeout for synthesis.")
@@ -68,28 +78,25 @@
   (if (file-exists? iotab-file-name) 
     (begin (iotab-file iotab-file-name)
            (iotab (load-iotab iotab-file-name)) 
-           (iotab-generate-samples (iotab-file) (iotab) #:nsamples (nsamples)))
-    (begin (printf "No such file: ~a\n" iotab-file-name) (exit))))
+           (iotab-generate-samples (iotab-file) (iotab)))
+    (error "No such file: ~a\n" iotab-file-name)))
 
 ; Utilities for synthesis
 
 ; Macro that calls synapse search directly
-(define-syntax-rule (synthesize-op precond postcond)
-  (let ([sketch (case (bitwidth)
-                  [(8) `bvop.b-simple]
-                  [(16) `bvop.w-simple])])
-    (search #:metasketch `(,sketch ,postcond ,(arity) #:pre ,precond #:maxlength ,(maxlength))
-            #:threads (threads)
-            #:timeout (timeout)
-            #:bitwidth (+ (bitwidth) 1)
-            #:exchange-samples #t
-            #:exchange-costs #t
-            #:use-structure #t
-            #:incremental #t
-            #:widening #f
-            #:synthesizer 'kodkod-incremental%
-            #:verifier 'kodkod%
-            #:verbose #f)))
+(define-syntax-rule (synthesize-op ops precond postcond)
+  (search #:metasketch `(bvop-simple ,ops ,postcond ,(arity) #:pre ,precond #:maxlength ,(maxlength))
+          #:threads (threads)
+          #:timeout (timeout)
+          #:bitwidth (+ (bitwidth) 1)
+          #:exchange-samples #t
+          #:exchange-costs #t
+          #:use-structure #t
+          #:incremental #t
+          #:widening #f
+          #:synthesizer 'kodkod-incremental%
+          #:verifier 'kodkod%
+          #:verbose #f))
 
 ; Function that turns a synapse bv program into a string
 (define (program->string p)
@@ -109,39 +116,54 @@
       (vector-ref statements (- (vector-length statements) 1)))))
 
 ; Perform the actual synthesis (and iterative check)
-(let* ([pre (case (bitwidth)
-                [(8) `valid-inputs.b]
-                [(16) `valid-inputs.w])]
-       [post `(iotab-sample->post ,(iotab-samples.rkt (iotab-file)) 
-                                  #:arity ,(arity)
-                                  #:index ,(+ (arity) (index)) 
-                                  #:width ,(bitwidth))]
-       [tab (iotab)]
-       [sat #t])
-(define (check)
-  (set! sat #t)
-  (let ([p (synthesize-op pre post)])
-    (if (equal? p #f) #f
-      (for ([kv (in-list (hash->list tab))])
-        #:break (not sat)
-        (define-values (key value) (values (first kv) (list-tail kv 1)))
-        (define-values (c a b) (values (sr-carry (first key)) (second key) (third key)))
-        (define sample (append (cons (sr-carry (first key)) (rest key)) (iotab-entry-separate value)))
-        (define result (list-ref sample 3))
-        (define inputs (list c a b result))
-        (define val (list-ref sample (+ (arity) (index))))
-        (set! sat (eq-under-width (bitwidth) (interpret p (take inputs (arity))) val))
-        (unless sat (begin ;(printf "Program ~v doesn't satisfy iotab for ~a, ~a (was ~a, should be ~a), adding ~a to sample set\n" p a b (interpret p (take inputs arity)) val inputs)
-                           (iotab-add-sample (iotab-file) sample)))))
-    (if sat (result p) (check))))
-(parameterize ([current-bitwidth (+ (bitwidth) 1)])
-  (check)))
+(define (synthesize-and-check)
+  (let ([pre (case (bitwidth)
+               [(8) `valid-inputs.b]
+               [(16) `valid-inputs.w])]
+        [ops (case (bitwidth)
+               [(8) `bvops.b]
+               [(16) `bvops.w])]
+        [post `(iotab-sample->post ,(iotab-samples.rkt (iotab-file)) 
+                                   #:arity ,(arity)
+                                   #:index ,(+ (arity) (index)) 
+                                   #:width ,(bitwidth))]
+        [tab (iotab)]
+        [sat #t])
+  (define (check)
+    (set! sat #t)
+    (let ([p (synthesize-op ops pre post)])
+      (if (equal? p #f) #f
+        (for ([kv (in-list (hash->list tab))])
+          #:break (not sat)
+          (define-values (key value) (values (first kv) (list-tail kv 1)))
+          (define-values (c a b) (values (sr-carry (first key)) (second key) (third key)))
+          (define sample (append (cons (sr-carry (first key)) (rest key)) (iotab-entry-separate value)))
+          (define result (list-ref sample 3))
+          (define inputs (list c a b result))
+          (define val (list-ref sample (+ (arity) (index))))
+          (set! sat (eq-under-width (bitwidth) (interpret p (take inputs (arity))) val))
+          (unless sat (begin ;(printf "Program ~v doesn't satisfy iotab for ~a, ~a (was ~a, should be ~a), adding ~a to sample set\n" p a b (interpret p (take inputs arity)) val inputs)
+                             (iotab-add-sample (iotab-file) sample)))))
+      (if sat (result p) (check))))
+  (parameterize ([current-bitwidth (+ (bitwidth) 1)])
+    (check))))
 
-(printf "~a" (program->string (result)))
+; Perform the actual synthesis, piecewise starting from LSB+3:LSB
+(define (synthesize-n4-up)
+  (let* ([post `(iotab-sample->post ,(iotab-samples.rkt (iotab-file)) 
+                                   #:arity ,(arity)
+                                   #:index ,(+ (arity) (index)) 
+                                   #:width ,(bitwidth))]
+         [tab (iotab)]
+         [p (synthesize-op `bvops-nt `valid-inputs-nt post)])
+    (result p)))
 
-; Notes:
-; - there are two things which determine the parameters of a synthesis search:
-;    1. The assertions used (n4 carry-left, n4 carry-right, n8/16 sample)
-;    2. The parameters passed to superopt (maxlength, timeout, pre/post
-;    conditions (see above)
+(case (strategy)
+  [(full) 
+   (synthesize-and-check)
+   (printf "~a" (program->string (result)))]
+  [(n4-up) 
+   (synthesize-n4-up)
+   (printf "~a ; n4-up" (program->string (result)))])
+
 

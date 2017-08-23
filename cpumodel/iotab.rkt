@@ -1,6 +1,15 @@
 #lang racket
 (provide (all-defined-out))
 
+; Utility functions
+(define (load-iotab file)
+  (with-input-from-file file (λ () 
+    (let ([tab (make-hash)] [pair (read)])
+      (for ([i (in-naturals)] #:break (eof-object? pair))
+        (hash-set! tab (first pair) (rest pair))
+        (set! pair (read)))
+      tab))))
+
 (define-syntax-rule (compress-sr x)
   (bitwise-ior (bitwise-and x 7) (bitwise-and (arithmetic-shift x -5) 8)))
 
@@ -54,24 +63,6 @@
                (arithmetic-shift (bitwise-and a #xf) 4)
                (bitwise-and b #xf)))
 
-(define (iotab-fmt1->n4 iotab)
-  (let ([ntab (make-vector (* 2 16 16) (void))])
-    (for* ([c (in-range 2)]
-           [a (in-range 16)]
-           [b (in-range 16)])
-      (let ([v (second (iotab-lookup-fmt1 iotab (list c a b)))])
-        (vector-set! ntab (iotab-idx-n4 c a b) (list (bitwise-and (arithmetic-shift v -4) #x1)
-                                                     (bitwise-and v #xf)))))
-    (define missing-outputs 0)
-    (for ([output ntab])
-      (when (void? output) (set! missing-outputs (+ missing-outputs 0))))
-    (when (> missing-outputs 0) (printf "iotab-fmt1->n4: missing ~a outputs\n" missing-outputs))
-    ntab))
-
-(define (iotab-lookup-n4 ntab inputs)
-  (vector-ref ntab (apply iotab-idx-n4 inputs)))
-
-
 (define (iotab-split iotab n)
   (apply values
          (for/list ([i (in-range n)])
@@ -82,16 +73,24 @@
     (if (null? sample) #f
       (append (list (sr-carry sr) a b) (iotab-entry-separate sample)))))
 
-(define (iotab-fmt1-sample iotab nsamples)
-  ; local function for tail recursion
-  (letrec ([f (λ (n v)
-    (if (= n -1) v 
-      (let* ([a (random 65536)]
-             [b (random 65536)]
-             [sr (random 16)]
-             [sample (iotab-sample iotab sr a b)])
-        ; keep trying until we get a sample that exists
-        (if (equal? sample #f) 
-          (f n v)
-          (begin (vector-set! v n sample) (f (- n 1) v))))))])
-    (f (- nsamples 1) (make-vector nsamples))))
+(define (iotab-fmt1-sample width nsamples) 
+  (λ (iotab)
+    ; local function for tail recursion
+    (letrec ([f (λ (n v)
+      (if (= n -1) v 
+        (let* ([a (random (arithmetic-shift 1 width))]
+               [b (random (arithmetic-shift 1 width))]
+               [sr (random 16)]
+               [sample (iotab-sample iotab sr a b)])
+          ; keep trying until we get a sample that exists
+          (if (equal? sample #f) 
+            (f n v)
+            (begin (vector-set! v n sample) (f (- n 1) v))))))])
+      (f (- nsamples 1) (make-vector nsamples)))))
+
+(define (iotab-n4-sample iotab)
+  (for*/vector #:length 512
+    ([c (in-range 2)]
+     [a (in-range 16)]
+     [b (in-range 16)])
+    (iotab-sample iotab c a b)))
