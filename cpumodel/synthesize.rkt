@@ -38,6 +38,10 @@
       (iotab-samples.rkt iotab-file)
       (thunk (write (sample iotab))))))
 
+(define (sread s)
+  (define i (open-input-string s))
+  (read i))
+
 ; Command line parsing
 (command-line 
   #:once-each
@@ -47,19 +51,23 @@
                     (bitwidth (string->number w))]
   [("-a" "--arity") a ("The number of inputs to the operation (default 3 -- input SR, op1 and op2)."
                        "This will determine how many values from the io table entry are"
-                       "available to synthesized operations.")
-                    (arity (string->number a))]
+                       "available to synthesized operations. Index may be a list of numbers "
+                       "   (e.g. '(1, 2, 3))"
+                       "in which case multiple syntheses will be run.")
+                    (arity (sread a))]
   [("-i" "--index") i ("Which item in the io table entry to synthesize the computation of,"
                        "starting after <arity> inputs. For example, an io table entry "
                        "might look like:"
                        "  (carry-in op1 op2 result carry zero neg overflow)"
                        "If arity is 3, and index is 0, then 'result' will be the value"
-                       "calculated.")
-                    (index (string->number i))]
+                       "calculated. Index may be a list of numbers (e.g. '(1, 2, 3), in "
+                       "which case multiple syntheses will be run. If both arity and index"
+                       "are lists, they must have the same length.")
+                    (index (sread i))]
   [("-m" "--maxlength") m ("Maximum number of instructions for a synthesized calculation."
                            "If no acceptable programs are found with fewer than <maxlength>"
                            "operations, then #f is returned.")
-                        (maxlength (string->number m))]
+                        (maxlength (sread m))]
   [("-n" "--nsamples") n ("Initial number of samples from the io tables to use in synthesis."
                           "More samples will take longer to evaluate, but will have a better"
                           "chance of capturing the complete behavior of the operation.")
@@ -158,12 +166,35 @@
          [p (synthesize-op `bvops-nt `valid-inputs-nt post)])
     (result p)))
 
-(case (strategy)
-  [(full) 
-   (synthesize-and-check)
-   (printf "~a" (program->string (result)))]
-  [(n4-up) 
-   (synthesize-n4-up)
-   (printf "~a ; n4-up" (program->string (result)))])
+(define (pad-list l n)
+  (if (= n 0) null
+    (if (null? (cdr l))
+      (cons (car l) (pad-list l (- n 1)))
+      (cons (car l) (pad-list (cdr l) (- n 1))))))
+
+(unless (list? (arity)) (arity (list (arity))))
+(unless (list? (index)) (arity (list (index))))
+(unless (list? (maxlength)) (arity (list (maxlength))))
+(define num-syntheses (max (length (arity)) (length (index)) (length (maxlength))))
+
+(arity (pad-list (arity) num-syntheses))
+(index (pad-list (index) num-syntheses))
+(maxlength (pad-list (maxlength) num-syntheses))
+
+(printf "(")
+(for ([i (in-range num-syntheses)])
+  (parameterize ([arity (list-ref (arity) i)] 
+                 [index (list-ref (index) i)] 
+                 [maxlength (list-ref (maxlength) i)])
+    (case (strategy)
+      [(full)
+       (synthesize-and-check)
+       (printf "\"~a\" " (program->string (result)))
+       (flush-output)]
+      [(n4-up) 
+       (synthesize-n4-up)
+       (printf "\"(~a (lambda () ~a))\" " (if (= arity 3) "n4-up" "n4-up/c") (program->string (result)))
+       (flush-output)])))
+(printf ")")
 
 
