@@ -46,7 +46,7 @@
                (= (second inputs) (bitwise-and (second inputs) #xffff))
                (= (third inputs) (bitwise-and (third inputs) #xffff)))))
 
-(define (valid-inputs-nt inputs)
+(define (valid-inputs-n4 inputs)
   (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
                (= (second inputs) (bitwise-and (second inputs) #xf))
                (= (third inputs) (bitwise-and (third inputs) #xf)))))
@@ -86,3 +86,12 @@
                [assertion (eq-under-width width (interpret P inputs) x)])
           (assert assertion))))))
 
+
+(define (iotab-sample->post/n4-up-carry sample-file #:arity (arity 3))
+  (λ (P inputs)
+    (let ([samples (with-input-from-file sample-file read)])
+      (for* ([sample (in-vector samples)])
+        (let* ([inputs (take sample arity)]
+               [result (arithmetic-shift (list-ref sample 3) -4)]
+               [assertion (eq-under-width 1 (interpret P inputs) result)])
+          (assert assertion))))))

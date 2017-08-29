@@ -158,12 +158,16 @@
 
 ; Perform the actual synthesis, piecewise starting from LSB+3:LSB
 (define (synthesize-n4-up)
-  (let* ([post `(iotab-sample->post ,(iotab-samples.rkt (iotab-file)) 
+  (let* ([post 
+           (if (number? (index))
+             `(iotab-sample->post ,(iotab-samples.rkt (iotab-file)) 
                                    #:arity ,(arity)
-                                   #:index ,(+ (arity) (index)) 
-                                   #:width ,(bitwidth))]
+                                   #:index ,(+ (arity) (index))
+                                   #:width ,(bitwidth))
+             `(iotab-sample->post/n4-up-carry ,(iotab-samples.rkt (iotab-file)) 
+                                              #:arity ,(arity)))]
          [tab (iotab)]
-         [p (synthesize-op `bvops-nt `valid-inputs-nt post)])
+         [p (synthesize-op `bvops-nt `valid-inputs-n4 post)])
     (result p)))
 
 (define (pad-list l n)
@@ -173,8 +177,8 @@
       (cons (car l) (pad-list (cdr l) (- n 1))))))
 
 (unless (list? (arity)) (arity (list (arity))))
-(unless (list? (index)) (arity (list (index))))
-(unless (list? (maxlength)) (arity (list (maxlength))))
+(unless (list? (index)) (index (list (index))))
+(unless (list? (maxlength)) (maxlength (list (maxlength))))
 (define num-syntheses (max (length (arity)) (length (index)) (length (maxlength))))
 
 (arity (pad-list (arity) num-syntheses))
@@ -193,8 +197,7 @@
        (flush-output)]
       [(n4-up) 
        (synthesize-n4-up)
-       (printf "\"(~a (lambda () ~a))\" " (if (= arity 3) "n4-up" "n4-up/c") (program->string (result)))
+       (printf "\"(~a (lambda () ~a))\" " (if (= (arity) 3) "n4-up" "n4-up/c") (program->string (result)))
        (flush-output)])))
 (printf ")")
-
-
+(flush-output)
