@@ -58,10 +58,9 @@
 (define (iotab-samples.rkt iotab-file)
   (string-append 
     "/tmp/" 
-    (string-replace 
+    (string-append
       (last (string-split iotab-file "/")) 
-      ".rkt" 
-      "-samples.rkt.tmp")))
+      "-samples.tmp")))
 
 (define (iotab-add-sample iotab-file sample)
   (let ([samples (with-input-from-file (iotab-samples.rkt iotab-file) read)])

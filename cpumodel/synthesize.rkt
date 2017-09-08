@@ -23,21 +23,6 @@
 
 (define result (make-parameter #f))
 
-(define (lookup-strat s)
-  (case s
-    [("n4-up") 'n4-up]
-    [("full") 'full]
-    [else (error "invalid strategy specified")]))
-
-(define (iotab-generate-samples iotab-file iotab)
-  (let ([sample
-          (case (strategy)
-            [(full) (iotab-fmt1-sample (bitwidth) (nsamples))]
-            [(n4-up) iotab-n4-sample])])
-    (with-output-to-file #:exists 'replace
-      (iotab-samples.rkt iotab-file)
-      (thunk (write (sample iotab))))))
-
 (define (sread s)
   (define i (open-input-string s))
   (read i))
@@ -48,7 +33,7 @@
   [("-w" "--width") w ("Bitwidth to use for synthesis."
                        "In order to correctly handle overflow, operations will actually"
                        "be performed at bitwidth one greater than that provided here.")
-                    (bitwidth (string->number w))]
+                    (bitwidth (sread w))]
   [("-a" "--arity") a ("The number of inputs to the operation (default 3 -- input SR, op1 and op2)."
                        "This will determine how many values from the io table entry are"
                        "available to synthesized operations. Index may be a list of numbers "
@@ -74,7 +59,7 @@
                        (nsamples (string->number n))]
   [("-s" "--strategy") s ("Strategy to use for synthesis. Available values:"
                           "  full, n4-up")
-                       (strategy (lookup-strat s))]
+                       (strategy (sread s))]
   [("-j" "--jobs" "--threads") j ("Number of jobs to use for synthesis.")
                                (threads (string->number j))]
   [("-t" "--timeout") t ("Timeout for synthesis.")
@@ -85,8 +70,7 @@
   ; Positional argument handling
   (if (file-exists? iotab-file-name) 
     (begin (iotab-file iotab-file-name)
-           (iotab (load-iotab iotab-file-name)) 
-           (iotab-generate-samples (iotab-file) (iotab)))
+           (iotab (load-iotab iotab-file-name)) )
     (error "No such file: ~a\n" iotab-file-name)))
 
 ; Utilities for synthesis
@@ -123,14 +107,25 @@
             (vector-set! statements i s))))
       (vector-ref statements (- (vector-length statements) 1)))))
 
+(define (iotab-generate-samples iotab-file iotab)
+  (let ([sample
+          (case (strategy)
+            [(full) (iotab-fmt1-sample (bitwidth) (nsamples))]
+            [(n4-up) iotab-n4-sample])])
+    (with-output-to-file #:exists 'replace
+      (iotab-samples.rkt iotab-file)
+      (thunk (write (sample iotab))))))
+
 ; Perform the actual synthesis (and iterative check)
 (define (synthesize-and-check)
   (let ([pre (case (bitwidth)
                [(8) `valid-inputs.b]
-               [(16) `valid-inputs.w])]
+               [(16) `valid-inputs.w]
+               [else (error "Unsupported synthesis bitwidth")])]
         [ops (case (bitwidth)
                [(8) `bvops.b]
-               [(16) `bvops.w])]
+               [(16) `bvops.w]
+               [else (error "Unsupported synthesis bitwidth")])]
         [post `(iotab-sample->post ,(iotab-samples.rkt (iotab-file)) 
                                    #:arity ,(arity)
                                    #:index ,(+ (arity) (index)) 
@@ -179,25 +174,28 @@
 (unless (list? (arity)) (arity (list (arity))))
 (unless (list? (index)) (index (list (index))))
 (unless (list? (maxlength)) (maxlength (list (maxlength))))
-(define num-syntheses (max (length (arity)) (length (index)) (length (maxlength))))
+(unless (list? (strategy)) (strategy (list (strategy))))
+(unless (list? (bitwidth)) (bitwidth (list (bitwidth))))
+(define num-syntheses (max (length (bitwidth)) (length (arity)) (length (index)) (length (maxlength)) (length (strategy))))
 
+(bitwidth (pad-list (bitwidth) num-syntheses))
 (arity (pad-list (arity) num-syntheses))
 (index (pad-list (index) num-syntheses))
 (maxlength (pad-list (maxlength) num-syntheses))
+(strategy (pad-list (strategy) num-syntheses))
 
 (printf "(")
 (for ([i (in-range num-syntheses)])
   (parameterize ([arity (list-ref (arity) i)] 
+                 [bitwidth (list-ref (bitwidth) i)] 
                  [index (list-ref (index) i)] 
-                 [maxlength (list-ref (maxlength) i)])
+                 [maxlength (list-ref (maxlength) i)]
+                 [strategy (list-ref (strategy) i)])
+    (iotab-generate-samples (iotab-file) (iotab))
     (case (strategy)
-      [(full)
-       (synthesize-and-check)
-       (printf "\"~a\" " (program->string (result)))
-       (flush-output)]
-      [(n4-up) 
-       (synthesize-n4-up)
-       (printf "\"(~a (lambda () ~a))\" " (if (= (arity) 3) "n4-up" "n4-up/c") (program->string (result)))
-       (flush-output)])))
+      [(full) (synthesize-and-check)]
+      [(n4-up) (synthesize-n4-up)])
+    (printf "\"~a\"" (program->string (result)))
+    (flush-output)))
 (printf ")")
 (flush-output)
